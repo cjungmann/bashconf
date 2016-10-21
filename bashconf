@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# Usage:
+# $ bashconf [schema]
+#
+# Example:
+# Open the keybindings page:
+# $ bashconf org.gnome.desktop.wm.keybindings
+#
+# No output, but click on list elements to drill-down.
+#
+# At this point, there is no ability to exit settings,
+# and relocatable schemas are still a work-in-progress.
+
+zsize="--width=800 --height=600"
+
+function pause_for_space
+{
+    while :
+    do
+        read -n1 -r -p "Press space to continue" key
+        if [[ $key == '' ]]; then return; fi
+    done
+}
+
+function edit_key_selection
+{
+    IFS='|' read -r -a rarr <<< "$1"
+    key=${rarr[0]}
+    curval=${rarr[1]}
+    defval=${rarr[2]}
+    
+    schema=$2
+    spath=$3
+    
+    zparams=$(xsltproc \
+        --stringparam schemaname "$schema" \
+        --stringparam keyname "$key" \
+        --stringparam curval "$curval" \
+        util_key_edit.xsl $spath)
+
+    IFS=# read -r -a parr <<< "$zparams"
+
+    # parr=("--text=This is the text" "--field=value")
+
+    echo "${zparams}"
+    
+    for ln in "${parr[@]}"
+    do
+        echo "Line: $ln"
+    done
+
+    result=$(yad --form --width=400 --height=300 "${parr[@]}")
+
+}
+
+function run_key_selection
+{
+    local schema=$1
+    local type=$2
+    local spath=$3
+    local result
+
+    xmlkeys=$(./util_get_keys $schema $type)
+    
+    result=$(echo "${xmlkeys}" \
+        | xsltproc \
+        --stringparam schemafile "$spath" \
+        --stringparam schemaname "$schema" \
+        util_key_list.xsl - \
+        | zenity --list $zsize --title="output" \
+        --column=name --column=current --column=default \
+        --print-column=all --separator="|")
+
+    case "$?" in
+        "0") edit_key_selection "${result}" $schema $spath ;;
+        "1") echo "exit" ;;
+        "-1") echo "error" ;;
+        ?*) echo "Unexpected match $?"
+            pause_for_space ;;
+    esac
+}
+
+function process_match
+{
+    # Make parameter for util_get_schemas script
+    IFS='|' read -r -a parr <<< "$1"
+    local pmatch="${parr[0]}"
+
+    local level_list=$(./util_get_schemas -v pmatch="$pmatch" schemas.list)
+    local level_arr=($level_list)
+    local continue_loop=true
+    local result
+
+    if [[ ${#level_arr[@]} == 3 && ${level_arr[1]}!='-' ]]; then
+        run_key_selection $level_list
+    else
+        while [[ $continue_loop=="true" ]]
+        do
+            result=$( zenity --list --title="$pmatch" $zsize \
+                --column "Schema" --column "type" --column "file" \
+                --hide-column=2,3 --hide-header \
+                $level_list )
+
+            case "$?" in
+                "0" ) process_match "${result}" ;;
+                "1" ) continue_loop=false; break ;;
+                "-1") continue_loop=false; break ;;
+                *   ) echo "Unexpected match $?"
+                    pause_for_space
+                    continue_loop=false
+                    break ;;
+            esac
+        done
+    fi
+}
+
+process_match "$1"

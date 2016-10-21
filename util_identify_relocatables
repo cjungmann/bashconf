@@ -1,0 +1,40 @@
+#!/usr/bin/awk -f
+
+# Usage:
+# ./util_identify_relocatables \
+#   -v rlist="$(gsettings list-relocatable-schemas)" \
+#    schemas.list
+#
+# Output:
+# Adds a second column, with "r" or "f", to schemas.list to identify
+# which schemas are relocatable.  Now each line has four fields:
+# 1. Schema name
+# 2. Relocatable flag, according to gsettings program
+# 3. Relocatable flag, as indicated by missing path attribute in .gschema.xml file
+# 4. Path to associated .gschema.xml file
+#
+# Note:
+# Occasionally, fields 2 and 3 disagree.  The program defers to field #2
+# because we have to consider gsettings authoritative when it is again used
+# to extract information.  However, I'm keeping both values in case the
+# discrepancy informs me, somehow, about how to handle the relocatable
+# stuff in org.compiz, especially org.compiz.core where I'm interested in
+# hsize and vsize for the workspaces array.
+
+BEGIN {
+   RS = "\n"
+   FS = "\t"
+   OFS = "\t"
+}
+
+rlist~$1 {
+   print $1, "r", $2, $3
+   next  # skip following 
+}
+# As a result of the "next" instruction at the end of the previous
+# action, this action will only run if the previous action didn't run.
+# It's like "else" in an if-else construction.
+{
+   print $1, "f", $2, $3
+}
+

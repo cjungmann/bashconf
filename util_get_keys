@@ -1,0 +1,65 @@
+#!/bin/bash
+
+# Usage:
+# util_get_keys [full or partial schema]
+#
+# Example:
+# Get the keybindings keys
+# util_get_keys org.gnome.desktop.wm.keybindings
+#
+# Output:
+# An XML file with the keys of the indicated schema.
+# The XML file will be used with _xsltproc_ to generate
+# parameters for calling YAD (yet another dialog).
+
+schema=$1
+btype=$2
+
+read -r -d '' awk_keys <<'EOF'
+BEGIN {
+   print "<?xml version=\"1.0\" ?>"
+   print "<gsettings>"
+}
+
+$NF=="[]" {
+   printf("<key name=\"%s\" />\n", $2);
+}
+
+function get_value_index()
+{
+   for (i=3; i<=NF; i++)
+   {
+      if (substr($i,1,1) == "[")
+         return i;
+   }
+   return 0;
+}
+
+function get_value()
+{
+   accum=""
+   for (i=get_value_index(); i<=NF; i++)
+      accum=accum$i
+   return accum
+}
+
+$NF!="[]" {
+   val=get_value()
+   printf( "<key name=\"%s\"><![CDATA[%s]]></key>\n", $2, val)
+}
+
+END { print "</gsettings>" }
+
+EOF
+
+if [[ $btype == "r" ]]; then
+    schpat="${schema}:/${schema//\./\/}/"
+else
+    schpat="${schema}"
+fi
+
+klist=$(gsettings list-recursively "$schpat")
+
+echo "${klist}" | awk "${awk_keys}" 
+
+

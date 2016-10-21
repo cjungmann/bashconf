@@ -1,0 +1,10 @@
+#!/usr/bin/awk -f
+
+BEGIN {
+   RS = "\n"
+   FS = "\t"
+}
+
+$1==pmatch {
+   printf("%s %s\n", $1, $2);
+}

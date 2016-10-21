@@ -1,0 +1,46 @@
+#!/usr/bin/awk -f
+
+# Usage:
+# ./util_get_schemas -v pmatch=org.compiz schemas.list
+#
+# Output:
+# Produces a list of schema keys, with a - (dash) if the
+# schema name is partial, or with a filename if the
+# schema specification is complete.
+#
+# Note: For YAD, the values must come without newlines,
+# so this script uses printf() to prevent newline output.
+# This could also be accomplished with an ORS (output
+# record separator) set to a space, ie ORS = " ".
+
+BEGIN {
+    RS = "\n";
+    FS = "\t";
+    lline = "."  # unmatcheable initial line
+
+    # Spaces between fields AND records
+    OFS = " ";
+    ORS = " ";
+
+    # pmatch comes from command line parameters
+    curpat=pmatch".[^.]+"
+}
+
+$1==pmatch {
+   print $1, $2, $3
+   next
+}
+# Is partial but NOT an exact match (note that exact match would have skipped this):
+index($1,pmatch)==1 {
+   if (match($1,curpat))
+   {
+      cline = substr($1,RSTART,RLENGTH)
+      if (cline!=lline) {
+         print cline, "2", "3"
+      }
+   }
+
+   # Save as lline for next comparison
+   lline = cline
+}
+

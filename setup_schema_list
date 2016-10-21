@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Usage:
+# ./setup_schema_list
+#
+# Output:
+# Produces lines with a schema name and the file which the schema
+# is defined.  The list will be in alphabetical order according
+# to the schema names.
+
+target=schemas.list
+
+if [[ -e $target ]]; then
+    echo "Deleting previous $target"
+    rm -f "$target"
+fi
+
+source_dir=$(dirname $(locate gschemas.compiled))
+sources=("$source_dir"/*)
+
+for fname in "${sources[@]}"
+do
+    if [[ $fname =~ xml ]]; then
+        xsltproc -stringparam schemafile "$fname" setup_getschemas.xsl "$fname" >> "$target"
+    fi
+done
+
+# LC_ALL=C is needed so punctuation is included in the sort.
+# For example, org.compiz is otherwise sorted between
+# org.compiz.vpswitch and org.compiz.unityshell.
+LC_ALL=C sort -t $'\t' -k 1 $target > $target.temp
+
+./util_identify_relocatables \
+    -v rlist="$(gsettings list-relocatable-schemas)" \
+    "$target.temp" > $target
+
+rm $target.temp
